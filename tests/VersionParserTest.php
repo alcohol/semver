@@ -400,6 +400,42 @@ class VersionParserTest extends \PHPUnit_Framework_TestCase
         $this->assertSame((string) $multi, (string) $parser->parseConstraints('^2.5 || ^3.0'));
     }
 
+    public function testParseCaretConstraintsMultiCollapsesContiguousWithExclude()
+    {
+        $parser = new VersionParser();
+        $first = new MultiConstraint(array(
+            new Constraint('>=', '0.2.0.0-dev'),
+            new Constraint('<', '0.3.0.0-dev'),
+        ));
+        $second = new MultiConstraint(array(
+            new Constraint('>=', '2.0.0.0-dev'),
+            new Constraint('<', '3.0.0.0-dev'),
+            new Constraint('!=', '2.2.0.0'),
+        ));
+        $multi = new MultiConstraint(array($first, $second), false);
+        $this->assertSame((string) $multi, (string) $parser->parseConstraints('^0.2 || ^2.0 !=2.2'));
+    }
+
+    public function testParseTildeConstraintsMultiCollapsesContiguousWithExclude()
+    {
+        $parser = new VersionParser();
+        $first = new Constraint('>=', '0.1.0.0-dev');
+        $second = new Constraint('<', '2.0.0.0-dev');
+        $third = new Constraint('!=', '1.0.1.0');
+        $multi = new MultiConstraint(array($first, $second, $third));
+        $this->assertSame((string) $multi, (string) $parser->parseConstraints('~0.1 || ~1.0 !=1.0.1'));
+    }
+
+    public function testParseIssue42()
+    {
+        $parser = new VersionParser();
+        $first = new Constraint('>=', '0.13.0.0-dev');
+        $second = new Constraint('<', '2.0.0.0-dev');
+        $third = new Constraint('!=', '1.3.1.0');
+        $multi = new MultiConstraint(array($first, $second, $third));
+        $this->assertSame((string) $multi, (string) $parser->parseConstraints('~0.13|~1.0 !=1.3.1'));
+    }
+
     /**
      * @dataProvider multiConstraintProvider
      */
