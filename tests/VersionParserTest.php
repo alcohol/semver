@@ -413,9 +413,22 @@ class VersionParserTest extends \PHPUnit_Framework_TestCase
             new Constraint('!=', '1.2.0.0'),
         ));
         $multi = new MultiConstraint(array($first, $second), false);
+        $this->assertFalse($multi->matches(new Constraint('=', '1.2.0.0')));
         $parsed = $parser->parseConstraints('^0.2 || ^1.0 !=1.2');
+        $this->assertFalse($parsed->matches(new Constraint('=', '1.2.0.0')));
         $this->assertSame((string) $multi, (string) $parsed);
-        $this->assertEquals($multi->getConstraints(), $parsed->getConstraints());
+    }
+
+    public function testParseSillyContiguousRange()
+    {
+        $parser = new VersionParser();
+        $first = new Constraint('>=', '1.0.0.0-dev');
+        $second = new Constraint('<', '5.0.0.0-dev');
+        $multi = new MultiConstraint(array($first, $second));
+
+        $parsed = $parser->parseConstraints('~1.0||~2.0||~3.0||~4.0');
+
+        $this->assertSame((string) $multi, (string) $parsed);
     }
 
     public function testParseTildeConstraintsMultiCollapsesContiguousWithExclude()
@@ -425,9 +438,10 @@ class VersionParserTest extends \PHPUnit_Framework_TestCase
         $second = new Constraint('<', '2.0.0.0-dev');
         $third = new Constraint('!=', '1.0.1.0');
         $multi = new MultiConstraint(array($first, $second, $third));
+        $this->assertFalse($multi->matches(new Constraint('=', '1.0.1.0')));
         $parsed = $parser->parseConstraints('~0.1 || ~1.0 !=1.0.1');
+        $this->assertFalse($parsed->matches(new Constraint('=', '1.0.1.0')));
         $this->assertSame((string) $multi, (string) $parsed);
-        $this->assertEquals($multi->getConstraints(), $parsed->getConstraints());
     }
 
     /**

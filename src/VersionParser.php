@@ -12,6 +12,7 @@
 namespace Composer\Semver;
 
 use Composer\Semver\Constraint\ConstraintInterface;
+use Composer\Semver\Constraint\ConstraintOptimizer;
 use Composer\Semver\Constraint\EmptyConstraint;
 use Composer\Semver\Constraint\MultiConstraint;
 use Composer\Semver\Constraint\Constraint;
@@ -38,7 +39,11 @@ class VersionParser
      */
     private static $modifierRegex = '[._-]?(?:(stable|beta|b|RC|alpha|a|patch|pl|p)((?:[.-]?\d+)*+)?)?([.-]?dev)?';
 
-    /** @var array */
+    /**
+     * Supported stabilities.
+     *
+     * @var array
+     */
     private static $stabilities = array('stable', 'RC', 'beta', 'alpha', 'dev');
 
     /**
@@ -158,7 +163,7 @@ class VersionParser
         if (preg_match('{(.*?)[.-]?dev$}i', $version, $match)) {
             try {
                 return $this->normalizeBranch($match[1]);
-            } catch (\Exception $e) {
+            } catch (\UnexpectedValueException $e) {
             }
         }
 
@@ -224,14 +229,20 @@ class VersionParser
      */
     public function parseConstraints($constraints)
     {
+        $optimizer = new ConstraintOptimizer();
         $prettyConstraint = $constraints;
 
-        if (preg_match('{^([^,\s]*?)@(' . implode('|', self::$stabilities) . ')$}i', $constraints, $match)) {
-            $constraints = empty($match[1]) ? '*' : $match[1];
+        // Strip stability flag, e.g. '~1.2@beta' becomes '~1.2'. If the constraint is just a stability flag we
+        // turn it into a wildcard, e.g. '@beta' becomes '*'.
+        $regex = '{^([^,\s]*?)@(' . implode('|', self::$stabilities) . ')$}i';
+        if (preg_match($regex, $constraints, $matches)) {
+            $constraints = empty($matches[1]) ? '*' : $matches[1];
         }
 
-        if (preg_match('{^(dev-[^,\s@]+?|[^,\s@]+?\.x-dev)#.+$}i', $constraints, $match)) {
-            $constraints = $match[1];
+        // Capture branch, e.g. from '1.x-dev#abc123' take '1.x-dev', or from 'dev-master#abc123' take 'dev-master'.
+        $regex = '{^(dev-[^,\s@]+?|[^,\s@]+?\.x-dev)#.+$}i';
+        if (preg_match($regex, $constraints, $matches)) {
+            $constraints = $matches[1];
         }
 
         $orConstraints = preg_split('{\s*\|\|?\s*}', trim($constraints));
@@ -250,7 +261,7 @@ class VersionParser
             }
 
             if (1 === count($constraintObjects)) {
-                $constraint = $constraintObjects[0];
+                $constraint = reset($constraintObjects);
             } else {
                 $constraint = new MultiConstraint($constraintObjects);
             }
@@ -259,24 +270,9 @@ class VersionParser
         }
 
         if (1 === count($orGroups)) {
-            $constraint = $orGroups[0];
-        } elseif (2 === count($orGroups)
-            // parse the two OR groups and if they are contiguous we collapse
-            // them into one constraint
-            && $orGroups[0] instanceof MultiConstraint
-            && $orGroups[1] instanceof MultiConstraint
-            && ($a = (string) $orGroups[0])
-            && substr($a, 0, 3) === '[>=' && (false !== ($posA = strpos($a, '<', 4)))
-            && ($b = (string) $orGroups[1])
-            && substr($b, 0, 3) === '[>=' && (false !== ($posB = strpos($b, '<', 4)))
-            && substr($a, $posA + 2, -1) === substr($b, 4, $posB - 5)
-        ) {
-            $constraint = new MultiConstraint(array(
-                new Constraint('>=', substr($a, 4, $posA - 5)),
-                new Constraint('<', substr($b, $posB + 2, -1)),
-            ));
+            $constraint = reset($orGroups);
         } else {
-            $constraint = new MultiConstraint($orGroups, false);
+            $constraint = $optimizer->orConstraints($orGroups);
         }
 
         $constraint->setPrettyString($prettyConstraint);

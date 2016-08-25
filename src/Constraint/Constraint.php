@@ -64,6 +64,54 @@ class Constraint implements ConstraintInterface
     protected $prettyString;
 
     /**
+     * Sets operator and version to compare with.
+     *
+     * @param string $operator
+     * @param string $version
+     *
+     * @throws \InvalidArgumentException if invalid operator is given.
+     */
+    public function __construct($operator, $version)
+    {
+        if (!isset(self::$transOpStr[$operator])) {
+            throw new \InvalidArgumentException(sprintf(
+                'Invalid operator "%s" given, expected one of: %s',
+                $operator,
+                implode(', ', self::getSupportedOperators())
+            ));
+        }
+
+        $this->operator = self::$transOpStr[$operator];
+        $this->version = $version;
+    }
+
+    /**
+     * Get all supported comparison operators.
+     *
+     * @return array
+     */
+    public static function getSupportedOperators()
+    {
+        return array_keys(self::$transOpStr);
+    }
+
+    /**
+     * @return int
+     */
+    public function getOperator()
+    {
+        return $this->operator;
+    }
+
+    /**
+     * @return string
+     */
+    public function getVersion()
+    {
+        return $this->version;
+    }
+
+    /**
      * @param ConstraintInterface $provider
      *
      * @return bool
@@ -96,38 +144,6 @@ class Constraint implements ConstraintInterface
         }
 
         return $this->__toString();
-    }
-
-    /**
-     * Get all supported comparison operators.
-     *
-     * @return array
-     */
-    public static function getSupportedOperators()
-    {
-        return array_keys(self::$transOpStr);
-    }
-
-    /**
-     * Sets operator and version to compare with.
-     *
-     * @param string $operator
-     * @param string $version
-     *
-     * @throws \InvalidArgumentException if invalid operator is given.
-     */
-    public function __construct($operator, $version)
-    {
-        if (!isset(self::$transOpStr[$operator])) {
-            throw new \InvalidArgumentException(sprintf(
-                'Invalid operator "%s" given, expected one of: %s',
-                $operator,
-                implode(', ', self::getSupportedOperators())
-            ));
-        }
-
-        $this->operator = self::$transOpStr[$operator];
-        $this->version = $version;
     }
 
     /**
